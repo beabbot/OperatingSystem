@@ -1,108 +1,108 @@
-# OperatingSystem
-================================================================================
-                            OPERATING SYSTEM GAME PROJECT
-================================================================================
+                     CSN6214 OPERATING SYSTEMS
+                       ASSIGNMENT TT2L - GROUP 02 (2530)
 
-1. HOW TO COMPILE
-=================
-This project uses a Makefile for easy compilation. Ensure you have 'g++' installed.
+1. HOW TO COMPILE (MAKE) AND RUN
+--------------------------------------------------------------------------------
+Prerequisites:
+- G++ Compiler (supporting C++11 or later)
+- Linux Environment (Required for <sys/mman.h>, <unistd.h>, and POSIX threads)
 
-Method A: Using Make (Recommended)
-----------------------------------
-Open a terminal in the project directory and run:
-   $ make
+Compilation Commands:
+Since the project uses POSIX threads and real-time extensions for shared memory, you must link the 'pthread' and 'rt' libraries.
 
-This will generate two executables:
-   - server
-   - client
+   1. Compile the Server:
+      g++ server.cpp -o server -lpthread -lrt
 
-Method B: Manual Compilation
-----------------------------
-If 'make' is not available, you can compile the files manually using g++:
+   2. Compile the Client:
+      g++ client.cpp -o client -lpthread -lrt
 
-   $ g++ server.cpp -o server -Wall -pthread -lrt
-   $ g++ client.cpp -o client -Wall -pthread -lrt
+Alternatively, if you have a Makefile:
+   make
 
-*Note: The flags -pthread and -lrt are required for POSIX threads and shared memory.*
+Running the System:
+   1. Start the Server first (Initializes Shared Memory and FIFO):
+      ./server
 
-To clean up compiled files:
-   $ make clean
+   2. Start the Client (Player 1 / Host):
+      ./client
+
+   3. Start Additional Clients (Players 2-5):
+      Open new terminal tabs and run:
+      ./client
 
 
-2. HOW TO RUN (EXAMPLE COMMANDS)
-================================
-The game requires one server instance and multiple client instances (one per player).
-Run each command in a separate terminal window.
+2. EXAMPLE COMMANDS & INTERACTION FLOW
+--------------------------------------------------------------------------------
+Step 1: Server Startup
+   Command: ./server
+   Output: "[SYSTEM] Shared Memory Created... SERVER RUNNING."
 
-Step 1: Start the Server
-------------------------
-The server must be running first to manage the shared memory and game state.
-   Terminal 1:
-   $ ./server
+Step 2: Host Connection (Player 1)
+   Command: ./client
+   Interaction:
+      >>> You are Player 1 (HOST) <<<
+      Enter Number of Players (3-5): 3
 
-Step 2: Start the Host (Player 1)
----------------------------------
-The first client to connect acts as the "Host" and sets up the game configuration.
-   Terminal 2:
-   $ ./client
-   >>> You are Player 1 (HOST) <<<
-   Enter Number of Players (3-5): 3
+Step 3: Joining Players
+   Command: ./client
+   Interaction:
+      >>> Connecting... <<<
+      (Wait for lobby to fill)
 
-Step 3: Start Joining Players
------------------------------
-Run additional clients for the remaining players.
-   Terminal 3 (Player 2):
-   $ ./client
-   >>> Connecting... <<<
+Step 4: Symbol Selection
+   Interaction:
+      >>> YOUR TURN TO CHOOSE SYMBOL! <<<
+      Enter a letter (A-Z): X
+      (Host chooses first, followed by Player 2, then Player 3)
 
-   Terminal 4 (Player 3):
-   $ ./client
-   >>> Connecting... <<<
+Step 5: Gameplay (Making a Move)
+   Interaction:
+      >>> YOUR TURN! Enter grid number: 5
+      (Input must be a valid grid number shown on the Reference Grid)
 
-Once all required players (e.g., 3) have joined, the game will automatically proceed to the "Symbol Selection" phase.
+Step 6: Server Shutdown (Save & Exit)
+   Command: Press Ctrl+C in the Server terminal.
+   Action: Saves current scores to 'scores.txt' and unlinks shared memory.
 
 
 3. GAME RULES SUMMARY
-=====================
-This is a turn-based multiplayer strategy grid game.
-
+--------------------------------------------------------------------------------
 Objective:
-   Be the first player to fill an entire row, column, or diagonal with your chosen symbol.
+   Form a continuous line of your symbol horizontally, vertically, or diagonally to win.
 
 Setup:
-   1. The Host selects the number of players (3 to 5).
-   2. The grid size adapts based on the number of players:
-      - 3 Players: 4x4 Grid
-      - 4 Players: 5x5 Grid
-      - 5 Players: 6x6 Grid
+   - 3 to 5 players supported.
+   - The grid size scales automatically based on the player count.
 
-Phases:
-   A. Symbol Selection: 
-      Players take turns choosing a unique letter (A-Z) to represent them on the board.
-   
-   B. Gameplay:
-      Players take turns entering a grid number (1-16, 1-25, or 1-36) to place their symbol.
-      - If a spot is taken, the move is invalid.
-      - There is a **20-second time limit** per turn. If a player fails to move, their turn is skipped.
+Turn Mechanics:
+   - Players take turns entering a grid number to place their symbol.
+   - A Reference Grid is displayed above the board to show valid numbers.
 
-Winning Condition:
-   The game ends immediately if a player achieves a full line (Horizontal, Vertical, or Diagonal) of their symbol.
-   If the board fills up with no winner, the game ends in a Draw.
+Time Limit:
+   - Each player has exactly 20 seconds to make a move.
+   - If the timer expires, the turn is forcibly skipped to the next player.
+
+Winning & Drawing:
+   - Victory: The first player to complete a line wins 1 point.
+   - Draw: If the grid fills up with no winner, the game ends in a Draw.
+
+Scores:
+   - Scores are persistent and saved to 'scores.txt' automatically.
 
 
-4. MODES & FEATURES SUPPORTED
-=============================
-* Local Multiplayer IPC:
-  Uses Shared Memory (shm) and Named Pipes (FIFO) for inter-process communication between the server and multiple client processes.
+4. MODE SUPPORTED
+--------------------------------------------------------------------------------
+Deployment Mode: 
+   Single Machine Mode.
+   - The Server and all Clients run on the same physical machine.
 
-* Dynamic Grid Modes:
-  - 3-Player Mode (4x4 Board)
-  - 4-Player Mode (5x5 Board)
-  - 5-Player Mode (6x6 Board)
+Architecture:
+   Hybrid Architecture (Multi-Process + Multi-Thread).
+   - Server: Parent process manages memory and spawns threads.
+   - Child Processes: Created via fork() to handle each client connection.
+   - Threads: Internal 'Logger' and 'Scheduler' threads run in the background.
 
-* Timeout System:
-  A scheduler thread on the server enforces a 20-second turn limit to prevent stalling.
-
-* Persistence & Logging:
-  - Scores are saved to 'scores.txt' upon server shutdown (Ctrl+C).
-  - Game events are logged in real-time to 'game.log'.
+Communication (IPC):
+   - Shared Memory: Used for game board, scores, and state updates.
+   - Named Pipes (FIFO): Used as a gatekeeper for initial connections.
+   - Process-Shared Mutexes: Used for synchronization.
