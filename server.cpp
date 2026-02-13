@@ -85,6 +85,7 @@ void write_log(const char* message) {
 void* logger_thread(void* arg) { 
     GameState* game = (GameState*)arg;
     write_log("System: Logger Thread Started.");
+    cout << "[SYSTEM] Logger Thread initialized." << endl; 
 
     while(true) {
         char buffer[LOG_LEN];
@@ -113,6 +114,7 @@ void* logger_thread(void* arg) {
 }
 
 void load_scores(GameState* game) {
+    cout << "[SYSTEM] Reading 'scores.txt' for persistence..." << endl; 
     FILE* scoresFile = fopen("scores.txt", "r");
     if (scoresFile) {
         for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -130,6 +132,7 @@ void load_scores(GameState* game) {
 }
 
 void save_scores(GameState* game) {
+    cout << "[SYSTEM] Writing final scores to 'scores.txt'..." << endl; 
     FILE* scoresFile = fopen("scores.txt", "w");
     if (scoresFile) {
         for (int i = 0; i < MAX_PLAYERS; i++){
@@ -179,6 +182,7 @@ void log_draw(){
 }
 
 void init_game(GameState *game){
+    cout << "[SYSTEM] Initializing Game State in Shared Memory..." << endl; 
     for (int i=0; i<BOARD_SIZE; i++) game->board[i] = 0;
     for (int i=0; i<MAX_PLAYERS; i++) {
         game->pending_moves[i] = 0;
@@ -239,6 +243,7 @@ int check_draw(GameState* game) {
 }
 
 void* schedule_thread(void* arg) {
+    cout << "[SYSTEM] Scheduler Thread initialized." << endl; 
     GameState* state = (GameState*)arg;
     write_log("Scheduler Started.");
     while(true) {
@@ -269,10 +274,13 @@ void* schedule_thread(void* arg) {
 void handle_sigchld(int sig) { while(waitpid(-1, NULL, WNOHANG) > 0); }
 void handle_sigint(int sig) {
     if (global_shm_ptr) {
+        cout << "\n[SYSTEM] SIGINT Received. Cleaning up..." << endl;
         printf("\nSaving scores and shutting down...\n");
         pthread_mutex_lock(&global_shm_ptr->game_mutex);
         save_scores(global_shm_ptr);
         pthread_mutex_unlock(&global_shm_ptr->game_mutex);
+
+        cout << "[SYSTEM] Unlinking Shared Memory and Named Pipes..." << endl;
         shm_unlink(SHM_NAME);
         unlink(FIFO_NAME);
     }
@@ -298,12 +306,16 @@ int main(){
         return 1;
     };
 
+    cout << "[SYSTEM] Shared Memory Created: " << SHM_NAME << endl; 
+
     shm_ptr = (GameState*)mmap(NULL, sizeof(GameState), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if(shm_ptr == MAP_FAILED){
         perror("mmap failed");
         shm_unlink(SHM_NAME);
         return 1;
     }
+
+    cout << "[SYSTEM] Memory Mapped at address: " << shm_ptr << endl; 
 
     global_shm_ptr = shm_ptr;
 
@@ -313,6 +325,8 @@ int main(){
     
     pthread_mutex_init(&shm_ptr->game_mutex, &mutexAttr);
     pthread_mutex_init(&shm_ptr->log_mutex, &mutexAttr);
+
+    cout << "[SYSTEM] Process-Shared Mutexes Initialized." << endl;
     
     init_game(shm_ptr);
     load_scores(shm_ptr);
@@ -322,6 +336,8 @@ int main(){
         shm_unlink(SHM_NAME);
         return 1;
     }
+
+    cout << "[SYSTEM] Named Pipe (FIFO) Created: " << FIFO_NAME << endl; 
   
     pthread_t t1, t2;
     pthread_create(&t1, NULL, logger_thread, shm_ptr);
@@ -436,22 +452,23 @@ int main(){
                                     shm_ptr->player_scores[player_id]++;
                                     save_scores(shm_ptr); 
                                     log_winner(player_id);
-                                    sprintf(shm_ptr->global_message, "Player %d Wins!", player_id+1);
-                                    cout << "[GAME RESULT] Player " << player_id + 1 << " has WON the game!" << endl;
-                                    cout << " To shut down safely and save scores, PRESS Ctrl+C" << endl;
+                                    sprintf(shm_ptr->global_message, "Player %d Wins!", player_id + 1);                                    
+                                    cout << "Player " << player_id + 1 << " has WON the game!" << endl;
+                                    cout << " If you want shut down and save scores, PRESS Ctrl+C" << endl;
                                 } 
                                 else if (check_draw(shm_ptr)) {
                                     shm_ptr->game_over = 1;
                                     shm_ptr->winner = -1;
                                     log_draw();
                                     sprintf(shm_ptr->global_message, "Draw!");
-                                    cout << "[GAME RESULT] The game ended in a DRAW." << endl;
-                                    cout << " To shut down safely and save scores, PRESS Ctrl+C" << endl;
+                                    cout << "The game ended in a DRAW." << endl;
+                                    cout << " If you want to shut down and save scores, PRESS Ctrl+C" << endl;
                                 } 
                                 else {
                                     shm_ptr->current_player_index = (shm_ptr->current_player_index + 1) % shm_ptr->required_players;
                                     shm_ptr->turn_start_time = time(NULL);
                                     sprintf(shm_ptr->global_message, "Next Turn: Player %d", shm_ptr->current_player_index+1);
+                                    log_turn(shm_ptr->current_player_index);                             
                                 }
                             } else shm_ptr->last_move_result[player_id] = -1; 
                         }
