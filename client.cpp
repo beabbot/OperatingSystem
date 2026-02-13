@@ -190,36 +190,31 @@ int main(){
         return 1;
     }
 
-    // 1. Intelligent Lobby Check & Host Claiming
     bool i_am_host = false;
 
     while(true) {
         pthread_mutex_lock(&game->game_mutex);
 
-        // Game is active and full: Block user
         if (game->game_over == 0 && game->required_players > 0 && game->connected_player >= game->required_players) {
             cout << " ERROR: THE GAME IS FULL!" << endl;
             pthread_mutex_unlock(&game->game_mutex);
             return 0;
         }
 
-        // Previous Game Just Ended: I claim Host status
         if (game->game_over == 1) {
-            game->game_over = 2; // Mark as "Reset in Progress"
+            game->game_over = 2; 
             i_am_host = true;
             pthread_mutex_unlock(&game->game_mutex);
-            break; // Proceed to be Host
+            break; 
         }
 
-        // Someone else claimed Host and is currently typing the player count
         if (game->game_over == 2) {
             pthread_mutex_unlock(&game->game_mutex);
             cout << " ... Waiting for the new Host to setup the game ... " << endl;
             sleep(1); 
-            continue; // Loop back and check again
+            continue; 
         }
 
-        // Fresh Start (Server just opened)
         if (game->connected_player == 0) {
             i_am_host = true;
         }
@@ -239,7 +234,6 @@ int main(){
         cout << ">>> Connecting... <<<" << endl;
     }
 
-    // 3. Handshake with Server
     int pipe_fd = open(FIFO_NAME, O_WRONLY); 
     if (pipe_fd == -1) {
         perror("Failed to open pipe");
@@ -255,7 +249,6 @@ int main(){
     write(pipe_fd, msg, sizeof(msg));
     close(pipe_fd);
     
-    // 4. Wait for ID Assignment
     cout << "Waiting for ID ..." << endl;
     int player_id = -1;
     while(player_id == -1) {
@@ -324,13 +317,10 @@ int main(){
             continue;
         }
 
-        // GAMEPLAY
         if (phase == PHASE_GAMEPLAY) {
             
-            // Show Reference Grid (Numbers)
             display_reference_grid(game->required_players);
 
-            // Show Game Status (Symbols)
             display_board_grid(game, game->required_players);
 
             if (game->game_over) {
@@ -338,13 +328,13 @@ int main(){
                  if(game->winner == player_id) cout << "YOU WIN!!!" << endl;
                  else if(game->winner == -1) cout << "IT IS A DRAW!" << endl;
                  else cout << "Player " << (game->winner+1) << " wins." << endl;
+                 cout << "Run ./client to play again" << endl;
                  break;
             }
 
             if (current_turn == player_id) {
                     cout << "\n>>> YOUR TURN! Enter grid number: " << flush;
                     
-                    // TIMEOUT CHECK (Non-blocking Input)
                     fd_set readfds;
                     FD_ZERO(&readfds);
                     FD_SET(STDIN_FILENO, &readfds);
